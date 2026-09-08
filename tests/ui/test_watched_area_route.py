@@ -69,6 +69,7 @@ def test_watched_area_is_saved_without_importing_the_video_again(tmp_path: Path)
             base_url,
             {
                 "folder_name": "example-site",
+                "video_id": "river-001",
                 "reference_region": {"x": 10, "y": 20, "width": 30, "height": 40},
             },
         )
@@ -94,6 +95,7 @@ def test_saving_the_watched_area_keeps_the_other_config_fields(tmp_path: Path) -
             base_url,
             {
                 "folder_name": "example-site",
+                "video_id": "river-001",
                 "reference_region": {"x": 5, "y": 5, "width": 10, "height": 10},
             },
         )
@@ -111,6 +113,7 @@ def test_an_existing_watched_area_is_replaced(tmp_path: Path) -> None:
             base_url,
             {
                 "folder_name": "example-site",
+                "video_id": "river-001",
                 "reference_region": {"x": 1, "y": 2, "width": 3, "height": 4},
             },
         )
@@ -128,7 +131,9 @@ def test_a_missing_watched_area_is_refused(tmp_path: Path) -> None:
     make_site(tmp_path / "example-site")
 
     with serve_home_ui(tmp_path) as base_url:
-        status, payload = post_watched_area(base_url, {"folder_name": "example-site"})
+        status, payload = post_watched_area(
+            base_url, {"folder_name": "example-site", "video_id": "river-001"}
+        )
 
     assert status == 400
     assert payload["success"] is False
@@ -223,6 +228,7 @@ def test_the_site_becomes_ready_for_validation_once_the_area_is_saved(tmp_path: 
             base_url,
             {
                 "folder_name": "example-site",
+                "video_id": "river-001",
                 "reference_region": {"x": 1, "y": 2, "width": 3, "height": 4},
             },
         )
@@ -241,3 +247,63 @@ def test_the_site_becomes_ready_for_validation_once_the_area_is_saved(tmp_path: 
     assert after["reference_region_found"] is True
     assert watched_area_step(after)["status"] == "complete"
     assert after["ready_for_validation"] is True
+
+
+def test_saving_without_a_video_id_is_refused(tmp_path: Path) -> None:
+    site_dir = make_site(tmp_path / "example-site")
+
+    with serve_home_ui(tmp_path) as base_url:
+        status, payload = post_watched_area(
+            base_url,
+            {
+                "folder_name": "example-site",
+                "reference_region": {"x": 1, "y": 2, "width": 3, "height": 4},
+            },
+        )
+
+    assert status == 400
+    assert payload["success"] is False
+    assert "existing video" in payload["message"]
+    assert "reference_region" not in read_config(site_dir)
+
+
+@pytest.mark.parametrize("video_id", ["not-a-real-video", "../river-001", "river-001.mp4"])
+def test_a_video_outside_this_site_is_refused(tmp_path: Path, video_id: str) -> None:
+    site_dir = make_site(tmp_path / "example-site")
+    other_site = make_site(tmp_path / "other-site")
+    (other_site / "inputs" / "videos" / "elsewhere-001.mp4").write_bytes(VIDEO_BYTES)
+
+    with serve_home_ui(tmp_path) as base_url:
+        status, payload = post_watched_area(
+            base_url,
+            {
+                "folder_name": "example-site",
+                "video_id": video_id,
+                "reference_region": {"x": 1, "y": 2, "width": 3, "height": 4},
+            },
+        )
+
+    assert status == 400
+    assert payload["success"] is False
+    assert "existing video" in payload["message"]
+    assert "reference_region" not in read_config(site_dir)
+
+
+def test_a_video_from_another_site_is_refused(tmp_path: Path) -> None:
+    site_dir = make_site(tmp_path / "example-site")
+    other_site = make_site(tmp_path / "other-site")
+    (other_site / "inputs" / "videos" / "elsewhere-001.mp4").write_bytes(VIDEO_BYTES)
+
+    with serve_home_ui(tmp_path) as base_url:
+        status, payload = post_watched_area(
+            base_url,
+            {
+                "folder_name": "example-site",
+                "video_id": "elsewhere-001",
+                "reference_region": {"x": 1, "y": 2, "width": 3, "height": 4},
+            },
+        )
+
+    assert status == 400
+    assert payload["success"] is False
+    assert "reference_region" not in read_config(site_dir)

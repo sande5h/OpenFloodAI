@@ -136,3 +136,10 @@ test("the watched area form posts only the region, and never a video", () => {
   assert.ok(!handler.includes("FormData"));
   assert.ok(handler.includes("if (!watchedAreaSelector.hasSelection())"));
 });
+
+test("the watched area form sends the chosen video id", () => {
+  const handler = script.match(
+    /watchedAreaForm\.addEventListener\("submit"[\s\S]*?\n      \}\);/
+  )[0];
+  assert.ok(handler.includes("video_id: watchedAreaVideoSelect.value"));
+});

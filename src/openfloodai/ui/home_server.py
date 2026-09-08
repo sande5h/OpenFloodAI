@@ -430,6 +430,21 @@ class OpenFloodAIHomeHandler(SimpleHTTPRequestHandler):
             )
             return
 
+        video_id = str(data.get("video_id", "")).strip()
+        try:
+            self._resolve_site_video(folder_name, video_id)
+        except ValueError:
+            self._send_json(
+                {
+                    "success": False,
+                    "message": (
+                        "Choose an existing video in this site before saving the watched area."
+                    ),
+                },
+                status_code=400,
+            )
+            return
+
         try:
             reference_region = _parse_reference_region(data.get("reference_region"))
             if reference_region is None:
